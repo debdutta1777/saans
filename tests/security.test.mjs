@@ -23,6 +23,25 @@ test("request reader rejects oversized streams and wrong content types", async (
   await assert.rejects(() =>
     readJSON(new Request("https://x", { method: "POST", body: "{}" })),
   );
+  await assert.rejects(() =>
+    readJSON(
+      new Request("https://x", {
+        method: "POST",
+        body: "{}",
+        headers: { "Content-Type": "application/json-unsupported" },
+      }),
+    ),
+  );
+  assert.deepEqual(
+    await readJSON(
+      new Request("https://x", {
+        method: "POST",
+        body: "{}",
+        headers: { "Content-Type": "Application/JSON; charset=utf-8" },
+      }),
+    ),
+    {},
+  );
 });
 test("API rejects cross-origin writes before using provider", async () => {
   const response = await worker.fetch(

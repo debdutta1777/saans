@@ -39,7 +39,12 @@ export function jsonResponse(data, status = 200, extra = {}) {
   });
 }
 export async function readJSON(request, maxBytes = 8192) {
-  if (!request.headers.get("content-type")?.startsWith("application/json"))
+  const mediaType = request.headers
+    .get("content-type")
+    ?.split(";", 1)[0]
+    .trim()
+    .toLowerCase();
+  if (mediaType !== "application/json")
     throw new Error("Send application/json.");
   const reader = request.body?.getReader();
   if (!reader) throw new Error("Request body is required.");

@@ -85,6 +85,7 @@ test("Gemini request keeps key in header, contains schema, validates success", a
   const fake = async (url, options) => {
     assert(!url.includes("test-secret"));
     assert.equal(options.headers["x-goog-api-key"], "test-secret");
+    assert.equal(options.redirect, "error");
     const payload = JSON.parse(options.body);
     assert(payload.generationConfig.responseSchema);
     assert(payload.systemInstruction.parts[0].text.includes("Never diagnose"));

@@ -21,6 +21,13 @@ const defaults = {
   distance: 10,
   language: "English",
 };
+const airTime = (timestamp) =>
+  new Intl.DateTimeFormat("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+    timeZone: CITIES[profile.city].timeZone ?? "Asia/Kolkata",
+  }).format(timestamp);
 const todayKey = () => new Date().toLocaleDateString("en-CA");
 let rawState;
 try {
@@ -37,7 +44,7 @@ let air = { status: "loading", aqi: null, forecast: [] },
   aiResult = null,
   airRequest = 0;
 let communityDraft = "";
-let aiBusy = false;
+let pendingQuestion;
 let activeDate = todayKey();
 const escapeHTML = (value) =>
   String(value ?? "").replace(
@@ -75,7 +82,7 @@ function heading(eyebrow, title, description) {
 const ART = `<svg class="hero-art" viewBox="0 0 260 300" aria-hidden="true"><circle cx="140" cy="120" r="100" fill="#dce4cb"/><path d="M10 275Q110 230 260 270V300H10" fill="#c7d3b9"/><path d="M156 268V91" stroke="#6b8660" stroke-width="3"/><path d="M155 180Q83 180 84 119Q148 112 155 180M157 148Q226 150 226 91Q168 91 157 148M156 224Q215 224 220 171Q164 163 156 224" fill="#789467"/><path d="M155 122Q110 121 119 72Q161 81 155 122" fill="#a0b68a"/><path d="M125 239H188L177 288H136Z" fill="#b68567"/><path d="M35 238V169H84V238" fill="#f4f3e8"/><path d="M29 170L60 142L91 170" fill="#87967d"/><path d="M48 238V208H67V238" fill="#c1cdb6"/><rect x="44" y="180" width="12" height="13" rx="2" fill="#c1cdb6"/><rect x="66" y="180" width="10" height="13" rx="2" fill="#c1cdb6"/><path d="M16 98Q43 83 68 97M28 108Q48 98 66 105" stroke="#b7c4a9" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
 function airCard() {
   const cat = category(air.aqi);
-  return `<section class="card air-card" aria-label="Outdoor air quality"><div class="card-top"><span class="card-label">THE AIR IN ${escapeHTML(CITIES[profile.city].name.toUpperCase())}</span><button id="refresh-air" class="icon-button" aria-label="Refresh air quality">↻</button></div><div class="air-reading"><span class="air-number">${air.aqi === null ? "—" : Math.round(air.aqi)}</span><span class="badge">${air.status === "loading" ? "Checking…" : cat.label}</span></div><p class="air-caption muted">US AQI · Modelled outdoor air</p><div class="aqi-spectrum" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="air-bottom"><div>PM2.5<strong>${air.pm25 == null ? "—" : air.pm25.toFixed(1)} <small>µg/m³</small></strong></div><div>PM10<strong>${air.pm10 == null ? "—" : air.pm10.toFixed(1)} <small>µg/m³</small></strong></div><div>Source time<strong>${air.at ? new Date(air.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</strong></div></div><p class="source-note">Open-Meteo / CAMS · Regional estimate, not a street sensor.<br>US AQI is different from India’s National AQI.</p></section>`;
+  return `<section class="card air-card" aria-label="Outdoor air quality"><div class="card-top"><span class="card-label">THE AIR IN ${escapeHTML(CITIES[profile.city].name.toUpperCase())}</span><button id="refresh-air" class="icon-button" aria-label="Refresh air quality">↻</button></div><div class="air-reading"><span class="air-number">${air.aqi === null ? "—" : Math.round(air.aqi)}</span><span class="badge">${air.status === "loading" ? "Checking…" : cat.label}</span></div><p class="air-caption muted">US AQI · Modelled outdoor air</p><div class="aqi-spectrum" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="air-bottom"><div>PM2.5<strong>${air.pm25 == null ? "—" : air.pm25.toFixed(1)} <small>µg/m³</small></strong></div><div>PM10<strong>${air.pm10 == null ? "—" : air.pm10.toFixed(1)} <small>µg/m³</small></strong></div><div>Source time<strong>${air.at ? airTime(air.at) : "—"}</strong></div></div><p class="source-note">Open-Meteo / CAMS · Regional estimate, not a street sensor.<br>US AQI is different from India’s National AQI.</p></section>`;
 }
 function airNotice() {
   if (air.status === "loading")
@@ -120,12 +127,12 @@ function checklist() {
     done = actions.filter((a) => completed.has(a.id)).length;
   if (!actions.length)
     return '<div class="notice">The current question needs urgent medical attention. See the assistant response.</div>';
-  return `<div class="section-heading"><h2>Your manageable next steps</h2><span class="completion-label">${done} / ${actions.length} done today</span></div><div class="progress"><div class="progress-fill" data-progress="${Math.round((done / actions.length) * 100)}"></div></div><div class="plan-list">${actions.map((a) => `<label class="plan-item ${completed.has(a.id) ? "done" : ""}"><input type="checkbox" data-action="${a.id}" aria-labelledby="action-title-${a.id}" ${completed.has(a.id) ? "checked" : ""}><span><h3 id="action-title-${a.id}">${a.title}</h3><p>${a.detail}</p>${fitNote(a)}<p><strong>Why it helps:</strong> ${a.impact}</p><span class="cost">${a.cost} · ${a.category}</span></span></label>`).join("")}</div>`;
+  return `<div class="section-heading"><h2>Your manageable next steps</h2><span class="completion-label" role="status">${done} / ${actions.length} done today</span></div><progress class="progress" aria-label="Daily checklist completion" value="${done}" max="${actions.length}"></progress><div class="plan-list">${actions.map((a) => `<article class="plan-item ${completed.has(a.id) ? "done" : ""}"><input type="checkbox" id="action-${a.id}" data-action="${a.id}" ${completed.has(a.id) ? "checked" : ""}><div><h3><label for="action-${a.id}">${a.title}</label></h3><p>${a.detail}</p>${fitNote(a)}<p><strong>Why it helps:</strong> ${a.impact}</p><span class="cost">${a.cost} · ${a.category}</span></div></article>`).join("")}</div>`;
 }
 function resultHTML() {
   if (!aiResult)
     return '<p class="empty">Your personalised response will appear here. You can use the daily checklist without AI.</p>';
-  return `<div class="notice info">${aiResult.mode === "gemini" ? "Generated with Gemini · Review before acting" : "Source-backed guidance · AI not used"}${aiResult.reason ? `<br>${{ not_configured: "Gemini is not configured yet.", rate_limited: "Gemini’s quota was reached. The guide remains available.", urgent_guidance: "Urgent symptoms need medical care, not generated advice.", configuration: "The model configuration needs checking.", provider_error: "Gemini could not respond. Showing the practical guide." }[aiResult.reason] || ""}` : ""}</div><p class="chat-answer" ${profile.language === "Hindi" ? 'lang="hi"' : profile.language === "Bengali" ? 'lang="bn"' : ""}>${escapeHTML(aiResult.summary)}</p><ul class="result-list">${aiResult.actionIds.map((id) => `<li>${ACTION_BY_ID.get(id)?.title || ""}</li>`).join("")}</ul>`;
+  return `<div class="notice info">${aiResult.mode === "gemini" ? "Generated with Gemini · Review before acting" : "Source-backed guidance · AI not used"}${aiResult.reason ? `<br>${{ not_configured: "Gemini is not configured yet.", rate_limited: "Gemini’s quota was reached. The guide remains available.", urgent_guidance: "Urgent symptoms need medical care, not generated advice.", configuration: "The model configuration needs checking.", provider_error: "Gemini could not respond. Showing the practical guide." }[aiResult.reason] || ""}` : ""}</div><p class="chat-answer" ${aiResult.mode === "gemini" && profile.language === "Hindi" ? 'lang="hi"' : aiResult.mode === "gemini" && profile.language === "Bengali" ? 'lang="bn"' : ""}>${escapeHTML(aiResult.summary)}</p><ul class="result-list">${aiResult.actionIds.map((id) => `<li>${ACTION_BY_ID.get(id)?.title || ""}</li>`).join("")}</ul>`;
 }
 function renderPlan() {
   return (
@@ -134,13 +141,13 @@ function renderPlan() {
       "Make today a little lighter.",
       "A realistic checklist, shaped around what you can actually do.",
     ) +
-    `<div class="inline-actions"><button class="secondary" id="plan-profile">Edit household preferences</button><button class="secondary" id="download-plan">Export my plan ↓</button><button class="text-button" id="reset-plan">Reset today’s checklist</button></div>${airNotice()}<div class="plan-layout"><section id="checklist">${checklist()}</section><section class="card"><p class="eyebrow">✧ ASK SAANS</p><h2>Let’s work around your life.</h2><p class="small muted">${escapeHTML(CITIES[profile.city].name)} · ${profile.budget === "free" ? "Free changes" : profile.budget === "low" ? "Low-cost changes" : "Flexible budget"} · ${profile.sensitive ? "Sensitive household" : "General guidance"}</p><form id="chat-form" class="chat-form"><label for="question">What would you like help with?</label><textarea id="question" name="question" maxlength="800" minlength="3" required placeholder="How can I reduce pollution at home without buying a purifier?"></textarea><div class="suggestions"><button type="button" class="chip" data-question="How can I make my school pickup routine lower-emission and reduce roadside exposure?">School runs</button><button type="button" class="chip" data-question="How can I reduce cooking pollution on a small budget?">Cooking & air</button><button type="button" class="chip" data-question="Help me plan a lower-emission commute without more outdoor exertion during smog.">My commute</button></div><label class="check-label"><input id="ai-consent" type="checkbox" ${config.aiConfigured ? "" : "disabled"}> Use Gemini: send this question, city, household preferences and outdoor AQI to Google. Do not include private or medical details.</label><button class="primary" id="ask-submit" type="submit">Get tailored guidance <span aria-hidden="true">↗</span></button><p class="source-note">${config.aiConfigured ? "Gemini configured. Availability depends on provider quota." : "Gemini is not configured. The source-backed guide works now; see How it works for secure setup."}</p></form><div id="answer" aria-live="polite">${resultHTML()}</div><p class="emergency">For severe breathlessness, chest pain or a medical emergency, seek urgent local medical care. Saans does not diagnose or replace a clinician’s advice.</p></section></div><section class="card forecast-card"><h2>Upcoming outdoor conditions</h2><p class="small muted">Modelled US AQI. Lower does not necessarily mean safe. Times shown in your device’s local time.</p><div class="forecast">${
+    `<div class="inline-actions"><button class="secondary" id="plan-profile">Edit household preferences</button><button class="secondary" id="download-plan">Export my plan ↓</button><button class="text-button" id="reset-plan">Reset today’s checklist</button></div>${airNotice()}<div class="plan-layout"><section id="checklist">${checklist()}</section><section class="card"><p class="eyebrow">✧ ASK SAANS</p><h2>Let’s work around your life.</h2><p class="small muted">${escapeHTML(CITIES[profile.city].name)} · ${profile.budget === "free" ? "Free changes" : profile.budget === "low" ? "Low-cost changes" : "Flexible budget"} · ${profile.sensitive ? "Sensitive household" : "General guidance"}</p><form id="chat-form" class="chat-form"><label for="question">What would you like help with?</label><textarea id="question" name="question" maxlength="800" minlength="3" required placeholder="How can I reduce pollution at home without buying a purifier?"></textarea><div class="suggestions"><button type="button" class="chip" data-question="How can I make my school pickup routine lower-emission and reduce roadside exposure?">School runs</button><button type="button" class="chip" data-question="How can I reduce cooking pollution on a small budget?">Cooking & air</button><button type="button" class="chip" data-question="Help me plan a lower-emission commute without more outdoor exertion during smog.">My commute</button></div><label class="check-label"><input id="ai-consent" type="checkbox" ${config.aiConfigured ? "" : "disabled"}> Use Gemini: send this question, city, household preferences and outdoor AQI to Google. Do not include private or medical details.</label><button class="primary" id="ask-submit" type="submit">Get tailored guidance <span aria-hidden="true">↗</span></button><p class="source-note">${config.aiConfigured ? "Gemini configured. Availability depends on provider quota." : "Gemini is not configured. The source-backed guide works now; see How it works for secure setup."}</p></form><div id="answer" tabindex="-1" aria-label="Assistant response" role="region" aria-live="polite">${resultHTML()}</div><p class="emergency">For severe breathlessness, chest pain or a medical emergency, seek urgent local medical care. Saans does not diagnose or replace a clinician’s advice.</p></section></div><section class="card forecast-card"><h2>Upcoming outdoor conditions</h2><p class="small muted">Modelled US AQI. Lower does not necessarily mean safe. Times are local to ${escapeHTML(CITIES[profile.city].name)}.</p><div class="forecast">${
       air.forecast?.length
         ? air.forecast
             .slice(0, 8)
             .map(
               (x) =>
-                `<div class="forecast-item">${new Date(x.time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}<strong>${Math.round(x.aqi)}</strong></div>`,
+                `<div class="forecast-item">${airTime(x.time)}<strong>${Math.round(x.aqi)}</strong></div>`,
             )
             .join("")
         : '<p class="empty">Forecast unavailable. No outdoor activity window is being recommended.</p>'
@@ -174,7 +181,7 @@ function renderCommunity() {
       .map(actionCard)
       .join(
         "",
-      )}</div><div class="two-grid calculator"><section class="card"><p class="eyebrow">UNDERSTAND YOUR IMPACT</p><h2>What if we shared the journey?</h2><p class="small muted">Compare a travel scenario. Values below are editable illustrative assumptions, not verified city-specific emission factors.</p><form id="impact-form"><div class="form-grid"><label>Return distance / day (km)<input name="distance" type="number" min="0" max="200" step="1" value="${profile.distance}" required></label><label>Travel days<input name="days" type="number" min="0" max="31" value="5" required></label><label>Baseline kg CO₂ / passenger-km<input name="baseline" type="number" min="0" max="2" step="0.001" value="0.17" required></label><label>Alternative kg CO₂ / passenger-km<input name="alternative" type="number" min="0" max="2" step="0.001" value="0.05" required></label><label>Participating households<input name="households" type="number" min="1" max="1000" value="1" required></label></div></form><div class="calculator-result" id="impact-result" aria-live="polite"></div><details class="guide-copy"><summary>Show formula & limitations</summary><p>Distance × days × (baseline factor − alternative factor) × households. Each household represents one traveller making the stated trip. Account for occupancy in your factors.</p><p>This estimates operational CO₂ only. It excludes vehicle manufacture, infrastructure and local PM2.5 dispersion. It does not predict a percentage AQI improvement or health benefit. Negative results mean the alternative emits more under your assumptions.</p></details></section><section class="card"><p class="eyebrow">MAKE IT A SHARED HABIT</p><h2>A note for your community.</h2><label>Choose an initiative<select id="initiative"><option value="no-idling">No-idling pickup area</option><option value="buddy">Neighbour errand buddy</option><option value="shared-room">Shared cleaner-air space</option></select></label><p class="small muted">A draft you can adapt and share yourself. Nothing is posted or sent automatically.</p><div id="community-note" class="community-letter"></div><button class="secondary" id="download-note">Download community note ↓</button></section></div>`
+      )}</div><div class="two-grid calculator"><section class="card"><p class="eyebrow">UNDERSTAND YOUR IMPACT</p><h2>What if we shared the journey?</h2><p class="small muted">Compare a travel scenario. Values below are editable illustrative assumptions, not verified city-specific emission factors.</p><form id="impact-form"><div class="form-grid"><label>Return distance / day (km)<input name="distance" type="number" min="0" max="200" step="any" value="${profile.distance}" required></label><label>Travel days<input name="days" type="number" min="0" max="31" value="5" required></label><label>Baseline kg CO₂ / passenger-km<input name="baseline" type="number" min="0" max="2" step="0.001" value="0.17" required></label><label>Alternative kg CO₂ / passenger-km<input name="alternative" type="number" min="0" max="2" step="0.001" value="0.05" required></label><label>Participating households<input name="households" type="number" min="1" max="1000" value="1" required></label></div></form><div class="calculator-result" id="impact-result" aria-live="polite"></div><details class="guide-copy"><summary>Show formula & limitations</summary><p>Distance × days × (baseline factor − alternative factor) × households. Each household represents one traveller making the stated trip. Account for occupancy in your factors.</p><p>This estimates operational CO₂ only. It excludes vehicle manufacture, infrastructure and local PM2.5 dispersion. It does not predict a percentage AQI improvement or health benefit. Negative results mean the alternative emits more under your assumptions.</p></details></section><section class="card"><p class="eyebrow">MAKE IT A SHARED HABIT</p><h2>A note for your community.</h2><label>Choose an initiative<select id="initiative"><option value="no-idling">No-idling pickup area</option><option value="buddy">Neighbour errand buddy</option><option value="shared-room">Shared cleaner-air space</option></select></label><p class="small muted">A draft you can adapt and share yourself. Nothing is posted or sent automatically.</p><div id="community-note" class="community-letter" aria-live="polite"></div><button class="secondary" id="download-note">Download community note ↓</button></section></div>`
   );
 }
 function renderGuide() {
@@ -213,12 +220,10 @@ function render() {
   if ($("#question") && draft !== undefined) $("#question").value = draft;
   if ($("#ai-consent") && consent && config.aiConfigured)
     $("#ai-consent").checked = true;
-  if (aiBusy && $("#ask-submit")) {
-    $("#ask-submit").disabled = true;
-    $("#ask-submit").textContent = "Preparing your guidance…";
-    $("#answer").textContent = "Working on your question…";
+  updateQuestionStatus();
+  if (focused && document.activeElement === document.body) {
+    document.getElementById(focused)?.focus({ preventScroll: true });
   }
-  if (focused === "question") $("#question")?.focus();
 }
 async function loadAir() {
   const seq = ++airRequest;
@@ -234,7 +239,7 @@ async function loadAir() {
     if (seq !== airRequest) return;
     air = { status: "unavailable", aqi: null, forecast: [] };
   }
-  render();
+  if (["today", "plan"].includes(currentPage())) render();
 }
 function openProfile() {
   const form = $("#profile-form");
@@ -260,8 +265,7 @@ function clearData() {
   } catch {}
   profile = { ...defaults };
   completed.clear();
-  planIds = null;
-  aiResult = null;
+  clearAnswer();
   $("#city").value = profile.city;
   $("#profile-dialog").close();
   loadAir();
@@ -290,15 +294,11 @@ function updateNote() {
   $("#community-note").textContent = communityDraft;
 }
 function bindPage() {
-  document
-    .querySelectorAll("[data-progress]")
-    .forEach((el) => (el.style.width = el.dataset.progress + "%"));
   $("#refresh-air")?.addEventListener("click", loadAir);
   $("#plan-profile")?.addEventListener("click", openProfile);
   $("#reset-plan")?.addEventListener("click", () => {
     completed.clear();
-    planIds = null;
-    aiResult = null;
+    clearAnswer();
     persist();
     render();
     toast("Checklist reset.");
@@ -350,46 +350,61 @@ function bindChecklist() {
         : completed.delete(input.dataset.action);
       persist();
       input.closest(".plan-item").classList.toggle("done", input.checked);
-      const total = activeActions().length,
-        done = activeActions().filter((a) => completed.has(a.id)).length;
-      $(".completion-label").textContent = `${done} / ${total} done today`;
-      $(".progress-fill").style.width = `${Math.round((done / total) * 100)}%`;
+      const actions = activeActions();
+      const done = actions.filter((action) => completed.has(action.id)).length;
+      $(".completion-label").textContent =
+        `${done} / ${actions.length} done today`;
+      $(".progress").value = done;
     }),
   );
 }
+function clearAnswer() {
+  pendingQuestion?.abort();
+  pendingQuestion = undefined;
+  planIds = null;
+  aiResult = null;
+}
+function updateQuestionStatus() {
+  const button = $("#ask-submit");
+  if (!button) return;
+  button.setAttribute("aria-disabled", Boolean(pendingQuestion));
+  button.textContent = pendingQuestion
+    ? "Preparing your guidance…"
+    : "Get tailored guidance";
+  if (pendingQuestion) $("#answer").textContent = "Working on your question…";
+}
 async function ask(event) {
   event.preventDefault();
-  const question = $("#question").value.trim(),
-    button = $("#ask-submit"),
-    answer = $("#answer");
-  if (question.length < 3 || aiBusy) return;
-  aiBusy = true;
-  button.disabled = true;
-  button.textContent = "Preparing your guidance…";
-  answer.textContent = "Working on your question…";
-  const requestProfile = { ...profile };
+  const question = $("#question").value.trim();
+  if (question.length < 3 || pendingQuestion) return;
+  const controller = new AbortController();
+  pendingQuestion = controller;
+  updateQuestionStatus();
   try {
     const response = await fetch("/api/assist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
-        profile: requestProfile,
+        profile,
         question,
         useAI: $("#ai-consent").checked,
       }),
     });
     const data = await response.json();
+    if (controller.signal.aborted) return;
     if (!response.ok) throw new Error(data.error || "Please try again.");
-    if (JSON.stringify(profile) !== JSON.stringify(requestProfile)) return;
-    aiBusy = false;
+    pendingQuestion = undefined;
     aiResult = data;
     planIds = data.actionIds;
-    if (data.air) air = data.air;
     if (currentPage() === "plan") {
-      const questionText = question;
-      render();
-      $("#question").value = questionText;
-      $("#answer").scrollIntoView({ block: "nearest", behavior: "auto" });
+      const fromSubmit = document.activeElement?.id === "ask-submit";
+      const checklistRegion = $("#checklist");
+      const fromChecklist = checklistRegion.contains(document.activeElement);
+      checklistRegion.innerHTML = checklist();
+      bindChecklist();
+      $("#answer").innerHTML = resultHTML();
+      if (fromSubmit || fromChecklist) $("#answer").focus();
     }
     toast(
       data.mode === "gemini"
@@ -397,15 +412,13 @@ async function ask(event) {
         : "Your source-backed plan is ready.",
     );
   } catch (error) {
-    if ($("#answer"))
+    if (!controller.signal.aborted && $("#answer")) {
       $("#answer").textContent =
         error.message || "Connection unavailable. Try again.";
-  } finally {
-    aiBusy = false;
-    if ($("#ask-submit")) {
-      $("#ask-submit").disabled = false;
-      $("#ask-submit").textContent = "Get tailored guidance ↗";
     }
+  } finally {
+    if (pendingQuestion === controller) pendingQuestion = undefined;
+    updateQuestionStatus();
   }
 }
 $("#city").innerHTML = Object.entries(CITIES)
@@ -414,8 +427,7 @@ $("#city").innerHTML = Object.entries(CITIES)
 $("#city").value = profile.city;
 $("#city").addEventListener("change", () => {
   profile.city = $("#city").value;
-  planIds = null;
-  aiResult = null;
+  clearAnswer();
   persist();
   loadAir();
 });
@@ -436,8 +448,7 @@ $("#profile-form").addEventListener("submit", (event) => {
       purifier: data.has("purifier"),
     });
     persist();
-    planIds = null;
-    aiResult = null;
+    clearAnswer();
     $("#profile-dialog").close();
     render();
     toast("Household preferences updated.");
@@ -445,17 +456,24 @@ $("#profile-form").addEventListener("submit", (event) => {
     toast(error.message);
   }
 });
+$(".skip").addEventListener("click", (event) => {
+  event.preventDefault();
+  $("#main").focus();
+  $("#main").scrollIntoView();
+});
 window.addEventListener("hashchange", () => {
   render();
   $("#main").focus();
   window.scrollTo(0, 0);
 });
-render();
 fetch("/api/config")
-  .then((r) => r.json())
+  .then((r) => {
+    if (!r.ok) throw new Error("Configuration unavailable");
+    return r.json();
+  })
   .then((data) => {
     config = data;
-    render();
+    if (["plan", "guide"].includes(currentPage())) render();
   })
   .catch(() =>
     toast("Configuration unavailable. The local guide still works."),

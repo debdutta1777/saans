@@ -6,8 +6,13 @@ export const CITIES = {
   bengaluru: { name: "Bengaluru", lat: 12.9716, lon: 77.5946 },
   lucknow: { name: "Lucknow", lat: 26.8467, lon: 80.9462 },
   patna: { name: "Patna", lat: 25.5941, lon: 85.1376 },
-  lahore: { name: "Lahore", lat: 31.5204, lon: 74.3587 },
-  dhaka: { name: "Dhaka", lat: 23.8103, lon: 90.4125 },
+  lahore: {
+    name: "Lahore",
+    lat: 31.5204,
+    lon: 74.3587,
+    timeZone: "Asia/Karachi",
+  },
+  dhaka: { name: "Dhaka", lat: 23.8103, lon: 90.4125, timeZone: "Asia/Dhaka" },
 };
 export const SOURCES = [
   {

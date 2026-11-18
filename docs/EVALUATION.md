@@ -68,3 +68,11 @@ npm run format:check
 5. Repeat a school-run question and an unknown-air-data case.
 6. Verify quota/provider failures still produce explicitly labelled guidance.
 7. Do not include API keys or private household data in screenshots, logs or submission materials.
+
+## Vercel production review
+
+On 18 November 2026, the deployed app returned live Kolkata air data and generated a Gemini answer in the daily planner about low-cost indoor steps during smog. The answer displayed the Gemini label and linked the summary to specific catalogue actions. The indoor calculator returned 160 cfm for 240 ft². Three participating households produced an illustrative 18 kg CO₂ estimate under the default travel assumptions. The community note changed when the initiative was switched, and the export control prepared a download.
+
+The browser review found two keyboard navigation issues. Submitting a question moved focus to the page body, and the skip link changed the active page. The implementation now keeps the existing question form in the DOM, moves focus to the result after keyboard submission, and sends the skip link directly to the current main region. Checklist completion uses a labelled native progress control. Air reading and forecast times display in the selected city’s time zone.
+
+The deployment responses included a restrictive Content Security Policy, HSTS, content-type protection, and private API cache rules. The Gemini adapter rejects redirects and the API accepts the `application/json` media type with optional parameters. The suite includes 41 checks. Per-instance request limits and the need for host-level traffic controls for wider public use remain documented in SECURITY.md.

@@ -43,7 +43,8 @@ a {
 button {
   cursor: pointer;
 }
-button:disabled {
+button:disabled,
+button[aria-disabled="true"] {
   cursor: wait;
   opacity: 0.6;
 }
@@ -250,7 +251,7 @@ main {
   letter-spacing: 1.8px;
   font-weight: 600;
   margin-bottom: 12px;
-  color: #6d7e66;
+  color: #53644c;
 }
 .intro {
   display: flex;
@@ -550,7 +551,7 @@ main {
 footer {
   padding: 25px 42px;
   font-size: 10px;
-  color: #768171;
+  color: #5d6a5d;
   display: flex;
   justify-content: space-between;
   border-top: 1px solid var(--line);
@@ -586,7 +587,7 @@ input:not([type="checkbox"]),
 select,
 textarea {
   padding: 11px 12px;
-  border: 1px solid #ccd5c6;
+  border: 1px solid #7c897c;
   border-radius: 7px;
   background: #fff;
   color: var(--ink);
@@ -648,7 +649,7 @@ textarea {
 }
 .plan-item .cost {
   font-size: 10px;
-  color: #667656;
+  color: #536341;
 }
 .chat-form {
   display: grid;
@@ -668,6 +669,7 @@ textarea {
   border-radius: 20px;
 }
 .chat-answer {
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
   line-height: 1.7;
   font-size: 13px;
@@ -678,22 +680,26 @@ textarea {
   font-size: 13px;
 }
 .progress {
-  height: 6px;
-  background: #e1e8da;
-  border-radius: 8px;
+  display: block;
+  width: 100%;
+  height: 8px;
   margin: 15px 0;
-  overflow: hidden;
+  accent-color: var(--green);
 }
-.progress-fill {
-  height: 100%;
-  background: #618353;
-  width: 0;
+.plan-item h3 label {
+  font: inherit;
+  cursor: pointer;
+}
+#answer:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #af6c24;
+  outline-offset: 3px;
 }
 .forecast {
   display: flex;
   gap: 8px;
   margin-top: 15px;
-  overflow-x: auto;
+  flex-wrap: wrap;
 }
 .forecast-item {
   background: #f2f4ed;
@@ -908,7 +914,7 @@ dialog h2 {
   }
   .sidebar nav {
     display: flex;
-    overflow-x: auto;
+    flex-wrap: wrap;
     gap: 5px;
     margin-top: 15px;
   }

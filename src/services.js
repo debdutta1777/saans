@@ -156,6 +156,7 @@ export async function assist({ profile, question, air }, env, fetcher = fetch) {
           "Content-Type": "application/json",
           "x-goog-api-key": env.GEMINI_API_KEY,
         },
+        redirect: "error",
         signal: AbortSignal.timeout(20000),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: system }] },
