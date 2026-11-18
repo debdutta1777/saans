@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#173c32" />
+    <meta
+      name="description"
+      content="A practical clean-air companion for families and neighbourhoods. Plan lower-emission days and healthier indoor routines with transparent, grounded guidance."
+    />
+    <title>Saans — A little more breathing room</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <div class="shell">
+      <aside class="sidebar">
+        <a class="brand" href="#today" aria-label="Saans home"
+          ><span class="brand-icon">≋</span>saans<span class="brand-dot"
+            >.</span
+          ></a
+        >
+        <p class="brand-caption">A LITTLE MORE BREATHING ROOM</p>
+        <nav aria-label="Main navigation">
+          <a href="#today" data-page="today"
+            ><span aria-hidden="true">◉</span> Today’s overview</a
+          ><a href="#plan" data-page="plan"
+            ><span aria-hidden="true">☷</span> My daily plan</a
+          ><a href="#home" data-page="home"
+            ><span aria-hidden="true">⌂</span> A cleaner home</a
+          ><a href="#community" data-page="community"
+            ><span aria-hidden="true">♧</span> Community</a
+          ><a href="#guide" data-page="guide"
+            ><span aria-hidden="true">⊙</span> How it works</a
+          >
+        </nav>
+        <div class="sidebar-note">
+          <span class="leaf-mark" aria-hidden="true">❧</span>
+          <h3>Small shifts.<br />Shared skies.</h3>
+          <p>A cleaner day starts with what’s within your reach.</p>
+        </div>
+        <button class="profile-link" id="edit-profile">
+          <span class="avatar">Y</span
+          ><span>Your household<small>Personalise your guidance</small></span
+          ><span aria-hidden="true">↗</span>
+        </button>
+      </aside>
+      <div class="workspace">
+        <header class="topbar">
+          <span id="page-label">YOUR CLEAN-AIR COMPANION</span>
+          <div class="top-actions">
+            <label class="city-label"
+              ><span aria-hidden="true">⌖</span
+              ><span class="sr-only">Your city</span
+              ><select id="city"></select></label
+            ><button
+              class="icon-button"
+              id="settings"
+              aria-label="Open household settings"
+            >
+              ⚙
+            </button>
+          </div>
+        </header>
+        <main id="main" tabindex="-1"></main>
+        <footer>
+          Made for real life, and the air we share.
+          <a href="#guide">Sources & privacy</a>
+        </footer>
+      </div>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <dialog id="profile-dialog" aria-labelledby="profile-title">
+      <form id="profile-form">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">MAKE IT YOURS</p>
+            <h2 id="profile-title">A plan that fits your life.</h2>
+          </div>
+          <button
+            type="button"
+            id="close-profile"
+            class="icon-button"
+            aria-label="Close settings"
+          >
+            ✕
+          </button>
+        </div>
+        <p class="muted">
+          Saved only in this browser. No names, addresses or medical history
+          needed.
+        </p>
+        <div class="form-grid">
+          <label
+            >Usual commute<select name="commute">
+              <option value="car">Private car / taxi</option>
+              <option value="transit">Bus / metro / shared ride</option>
+              <option value="walk">Walk / cycle</option>
+              <option value="remote">Mostly at home</option>
+            </select></label
+          ><label
+            >Daily return distance (km)<input
+              name="distance"
+              type="number"
+              min="0"
+              max="200"
+              value="10"
+              required /></label
+          ><label
+            >Home improvement budget<select name="budget">
+              <option value="free">Free changes only</option>
+              <option value="low">Low-cost changes</option>
+              <option value="flexible">Can invest in filtration</option>
+            </select></label
+          ><label
+            >AI response language<select name="language">
+              <option>English</option>
+              <option>Hindi</option>
+              <option>Bengali</option>
+            </select></label
+          >
+        </div>
+        <label class="check-label"
+          ><input name="sensitive" type="checkbox" /> Prioritise children, older
+          adults or sensitive household members</label
+        ><label class="check-label"
+          ><input name="purifier" type="checkbox" /> We already have a particle
+          air purifier</label
+        >
+        <div class="dialog-actions">
+          <button type="button" class="text-button" id="erase">
+            Clear my saved data</button
+          ><button class="primary" type="submit">
+            Save preferences <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

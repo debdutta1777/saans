@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env*
+!.env.example
+.dev.vars*
+*.log
+coverage/
+.openai/local*
+
+src/assets.generated.js
+
+.vercel/

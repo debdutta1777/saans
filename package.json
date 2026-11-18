@@ -1,0 +1,23 @@
+{
+  "name": "saans-clean-air",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env.local scripts/dev.mjs",
+    "start": "node --env-file-if-exists=.env.local scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "npm run build:vercel && node --test tests/*.test.mjs",
+    "check": "node scripts/check.mjs",
+    "validate": "node scripts/validate-artifact.mjs",
+    "format": "prettier --write src public worker scripts tests docs README.md package.json .github api vercel.json",
+    "format:check": "prettier --check src public worker scripts tests docs README.md package.json .github api vercel.json",
+    "build:vercel": "node scripts/build-vercel.mjs"
+  },
+  "devDependencies": {
+    "prettier": "3.10.1"
+  }
+}
