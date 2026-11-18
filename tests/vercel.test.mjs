@@ -18,6 +18,7 @@ test("Vercel serves only the frontend assets with the expected security headers"
     "app.js",
     "domain.js",
     "index.html",
+    "planner-view.js",
     "styles.css",
   ]);
   assert.equal(
