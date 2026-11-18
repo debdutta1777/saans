@@ -7,16 +7,20 @@ import {
   recommend,
   calculateImpact,
   ACTION_BY_ID,
+  selectionReason,
   restoreState,
 } from "/domain.js";
-import {
-  completedCount,
-  escapeHTML,
-  renderAnswer,
-  renderChecklist,
-} from "./planner-view.js";
 const $ = (s) => document.querySelector(s);
 const STORAGE = "saans-v1";
+const defaults = {
+  city: "kolkata",
+  commute: "car",
+  budget: "low",
+  sensitive: false,
+  purifier: false,
+  distance: 10,
+  language: "English",
+};
 const airTime = (timestamp) =>
   new Intl.DateTimeFormat("en-IN", {
     hour: "numeric",
@@ -36,11 +40,20 @@ let profile = restored.profile;
 let completed = new Set(restored.completed);
 let air = { status: "loading", aqi: null, forecast: [] },
   config = { aiConfigured: false },
+  planIds = null,
   aiResult = null,
   airRequest = 0;
 let communityDraft = "";
 let pendingQuestion;
 let activeDate = todayKey();
+const escapeHTML = (value) =>
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
 function persist() {
   try {
     localStorage.setItem(
@@ -57,16 +70,11 @@ function toast(message) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => ($("#toast").textContent = ""), 5000);
 }
-const pages = {
-  today: { title: "Today’s overview", render: renderToday },
-  plan: { title: "My daily plan", render: renderPlan },
-  home: { title: "A cleaner home", render: renderHome },
-  community: { title: "Community", render: renderCommunity },
-  guide: { title: "How it works", render: renderGuide },
-};
 function currentPage() {
-  const page = location.hash.slice(1);
-  return Object.hasOwn(pages, page) ? page : "today";
+  const p = location.hash.slice(1);
+  return ["today", "plan", "home", "community", "guide"].includes(p)
+    ? p
+    : "today";
 }
 function heading(eyebrow, title, description) {
   return `<div class="intro"><div><p class="eyebrow">${eyebrow}</p><h1>${title}</h1><p>${description}</p></div><span class="date">${new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "long" }).format(new Date())}</span></div>`;
@@ -85,18 +93,8 @@ function airNotice() {
     return '<p class="notice">Pollution is elevated. Prioritise reducing exposure, particularly for sensitive household members. Lower-emission travel should not mean extra exertion outdoors in smog.</p>';
   return '<p class="notice info">Use local advisories alongside this regional estimate. Indoor air quality is not measured by this app.</p>';
 }
-const actionIcons = { routine: "↗", indoor: "⌂", community: "♧" };
-function actionCard(action) {
-  const source = SOURCES.find((source) => source.id === action.source);
-  const citation = source
-    ? `<a href="${source.url}" target="_blank" rel="noopener noreferrer">Read the source ↗</a>`
-    : "<p>Practical sustainability guidance; no measured local reduction claimed.</p>";
-  return `<article class="card action-card">
-    <div class="action-icon" aria-hidden="true">${actionIcons[action.category]}</div>
-    <h3>${action.title}</h3><p>${action.detail}</p><span class="tag">${action.cost}</span>
-    <details><summary>Why this helps<span class="sr-only">: ${action.title}</span></summary>
-      <p>${action.impact}</p>${citation}
-    </details></article>`;
+function actionCard(a) {
+  return `<article class="card action-card"><div class="action-icon" aria-hidden="true">${a.category === "routine" ? "↗" : a.category === "indoor" ? "⌂" : "♧"}</div><h3>${a.title}</h3><p>${a.detail}</p><span class="tag">${a.cost}</span><details><summary>Why this helps</summary><p>${a.impact}</p>${a.source ? `<a href="${SOURCES.find((s) => s.id === a.source).url}" target="_blank" rel="noopener noreferrer">Read the source ↗</a>` : "<p>Practical sustainability guidance; no measured local reduction claimed.</p>"}</details></article>`;
 }
 function renderToday() {
   const picks = recommend(profile, air).slice(0, 3);
@@ -114,12 +112,27 @@ function renderToday() {
   );
 }
 function activeActions() {
-  return aiResult
-    ? aiResult.actionIds.map((id) => ACTION_BY_ID.get(id)).filter(Boolean)
+  return planIds
+    ? planIds.map((id) => ACTION_BY_ID.get(id)).filter(Boolean)
     : recommend(profile, air);
 }
+function fitNote(action) {
+  const reason = selectionReason(action.id, profile, air);
+  return reason
+    ? `<p><strong>Why this fits:</strong> ${escapeHTML(reason)}</p>`
+    : "";
+}
 function checklist() {
-  return renderChecklist(activeActions(), completed, profile, air);
+  const actions = activeActions(),
+    done = actions.filter((a) => completed.has(a.id)).length;
+  if (!actions.length)
+    return '<div class="notice">The current question needs urgent medical attention. See the assistant response.</div>';
+  return `<div class="section-heading"><h2>Your manageable next steps</h2><span class="completion-label" role="status">${done} / ${actions.length} done today</span></div><progress class="progress" aria-label="Daily checklist completion" value="${done}" max="${actions.length}"></progress><div class="plan-list">${actions.map((a) => `<article class="plan-item ${completed.has(a.id) ? "done" : ""}"><input type="checkbox" id="action-${a.id}" data-action="${a.id}" ${completed.has(a.id) ? "checked" : ""}><div><h3><label for="action-${a.id}">${a.title}</label></h3><p>${a.detail}</p>${fitNote(a)}<p><strong>Why it helps:</strong> ${a.impact}</p><span class="cost">${a.cost} · ${a.category}</span></div></article>`).join("")}</div>`;
+}
+function resultHTML() {
+  if (!aiResult)
+    return '<p class="empty">Your personalised response will appear here. You can use the daily checklist without AI.</p>';
+  return `<div class="notice info">${aiResult.mode === "gemini" ? "Generated with Gemini · Review before acting" : "Source-backed guidance · AI not used"}${aiResult.reason ? `<br>${{ not_configured: "Gemini is not configured yet.", rate_limited: "Gemini’s quota was reached. The guide remains available.", urgent_guidance: "Urgent symptoms need medical care, not generated advice.", configuration: "The model configuration needs checking.", provider_error: "Gemini could not respond. Showing the practical guide." }[aiResult.reason] || ""}` : ""}</div><p class="chat-answer" ${aiResult.mode === "gemini" && profile.language === "Hindi" ? 'lang="hi"' : aiResult.mode === "gemini" && profile.language === "Bengali" ? 'lang="bn"' : ""}>${escapeHTML(aiResult.summary)}</p><ul class="result-list">${aiResult.actionIds.map((id) => `<li>${ACTION_BY_ID.get(id)?.title || ""}</li>`).join("")}</ul>`;
 }
 function renderPlan() {
   return (
@@ -128,7 +141,7 @@ function renderPlan() {
       "Make today a little lighter.",
       "A realistic checklist, shaped around what you can actually do.",
     ) +
-    `<div class="inline-actions"><button class="secondary" id="plan-profile">Edit household preferences</button><button class="secondary" id="download-plan">Export my plan ↓</button><button class="text-button" id="reset-plan">Reset today’s checklist</button></div>${airNotice()}<div class="plan-layout"><section id="checklist">${checklist()}</section><section class="card"><p class="eyebrow">✧ ASK SAANS</p><h2>Let’s work around your life.</h2><p class="small muted">${escapeHTML(CITIES[profile.city].name)} · ${profile.budget === "free" ? "Free changes" : profile.budget === "low" ? "Low-cost changes" : "Flexible budget"} · ${profile.sensitive ? "Sensitive household" : "General guidance"}</p><form id="chat-form" class="chat-form"><label for="question">What would you like help with?</label><textarea id="question" name="question" maxlength="800" minlength="3" required placeholder="How can I reduce pollution at home without buying a purifier?"></textarea><div class="suggestions"><button type="button" class="chip" data-question="How can I make my school pickup routine lower-emission and reduce roadside exposure?">School runs</button><button type="button" class="chip" data-question="How can I reduce cooking pollution on a small budget?">Cooking & air</button><button type="button" class="chip" data-question="Help me plan a lower-emission commute without more outdoor exertion during smog.">My commute</button></div><label class="check-label"><input id="ai-consent" type="checkbox" ${config.aiConfigured ? "" : "disabled"}> Use Gemini: send this question, city, household preferences and outdoor AQI to Google. Do not include private or medical details.</label><button class="primary" id="ask-submit" type="submit">Get tailored guidance <span aria-hidden="true">↗</span></button><p class="source-note">${config.aiConfigured ? "Gemini configured. Availability depends on provider quota." : "Gemini is not configured. The source-backed guide works now; see How it works for secure setup."}</p></form><div id="answer" tabindex="-1" aria-label="Assistant response" role="region" aria-live="polite">${renderAnswer(aiResult, profile.language)}</div><p class="emergency">For severe breathlessness, chest pain or a medical emergency, seek urgent local medical care. Saans does not diagnose or replace a clinician’s advice.</p></section></div><section class="card forecast-card"><h2>Upcoming outdoor conditions</h2><p class="small muted">Modelled US AQI. Lower does not necessarily mean safe. Times are local to ${escapeHTML(CITIES[profile.city].name)}.</p><div class="forecast">${
+    `<div class="inline-actions"><button class="secondary" id="plan-profile">Edit household preferences</button><button class="secondary" id="download-plan">Export my plan ↓</button><button class="text-button" id="reset-plan">Reset today’s checklist</button></div>${airNotice()}<div class="plan-layout"><section id="checklist">${checklist()}</section><section class="card"><p class="eyebrow">✧ ASK SAANS</p><h2>Let’s work around your life.</h2><p class="small muted">${escapeHTML(CITIES[profile.city].name)} · ${profile.budget === "free" ? "Free changes" : profile.budget === "low" ? "Low-cost changes" : "Flexible budget"} · ${profile.sensitive ? "Sensitive household" : "General guidance"}</p><form id="chat-form" class="chat-form"><label for="question">What would you like help with?</label><textarea id="question" name="question" maxlength="800" minlength="3" required placeholder="How can I reduce pollution at home without buying a purifier?"></textarea><div class="suggestions"><button type="button" class="chip" data-question="How can I make my school pickup routine lower-emission and reduce roadside exposure?">School runs</button><button type="button" class="chip" data-question="How can I reduce cooking pollution on a small budget?">Cooking & air</button><button type="button" class="chip" data-question="Help me plan a lower-emission commute without more outdoor exertion during smog.">My commute</button></div><label class="check-label"><input id="ai-consent" type="checkbox" ${config.aiConfigured ? "" : "disabled"}> Use Gemini: send this question, city, household preferences and outdoor AQI to Google. Do not include private or medical details.</label><button class="primary" id="ask-submit" type="submit">Get tailored guidance <span aria-hidden="true">↗</span></button><p class="source-note">${config.aiConfigured ? "Gemini configured. Availability depends on provider quota." : "Gemini is not configured. The source-backed guide works now; see How it works for secure setup."}</p></form><div id="answer" tabindex="-1" aria-label="Assistant response" role="region" aria-live="polite">${resultHTML()}</div><p class="emergency">For severe breathlessness, chest pain or a medical emergency, seek urgent local medical care. Saans does not diagnose or replace a clinician’s advice.</p></section></div><section class="card forecast-card"><h2>Upcoming outdoor conditions</h2><p class="small muted">Modelled US AQI. Lower does not necessarily mean safe. Times are local to ${escapeHTML(CITIES[profile.city].name)}.</p><div class="forecast">${
       air.forecast?.length
         ? air.forecast
             .slice(0, 8)
@@ -148,7 +161,7 @@ function renderHome() {
       "Start with the air indoors.",
       "Simple source control first. Thoughtful filtration next. No miracle fixes.",
     ) +
-    `<div class="notice info">Houseplants, steam and fragrances are not substitutes for particle filtration. Outdoor AQI cannot tell us your indoor AQI.</div><h2 class="sr-only">Indoor air actions</h2><div class="three-grid">${ACTIONS.filter(
+    `<div class="notice info">Houseplants, steam and fragrances are not substitutes for particle filtration. Outdoor AQI cannot tell us your indoor AQI.</div><div class="three-grid">${ACTIONS.filter(
       (a) => a.category === "indoor",
     )
       .map(actionCard)
@@ -164,9 +177,7 @@ function renderCommunity() {
       "Small shifts. Shared skies.",
       "Turn individual choices into a practical neighbourhood conversation.",
     ) +
-    `<h2 class="sr-only">Neighbourhood initiatives</h2><div class="three-grid">${ACTIONS.filter(
-      (a) => a.category === "community",
-    )
+    `<div class="three-grid">${ACTIONS.filter((a) => a.category === "community")
       .map(actionCard)
       .join(
         "",
@@ -198,8 +209,13 @@ function render() {
     if (a.dataset.page === page) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
-  $("#main").innerHTML = pages[page].render();
-  document.title = pages[page].title + " | Saans";
+  $("#main").innerHTML = {
+    today: renderToday,
+    plan: renderPlan,
+    home: renderHome,
+    community: renderCommunity,
+    guide: renderGuide,
+  }[page]();
   bindPage();
   if ($("#question") && draft !== undefined) $("#question").value = draft;
   if ($("#ai-consent") && consent && config.aiConfigured)
@@ -247,7 +263,7 @@ function clearData() {
   try {
     localStorage.removeItem(STORAGE);
   } catch {}
-  profile = validateProfile({});
+  profile = { ...defaults };
   completed.clear();
   clearAnswer();
   $("#city").value = profile.city;
@@ -291,12 +307,8 @@ function bindPage() {
   document.querySelectorAll("[data-question]").forEach((button) =>
     button.addEventListener("click", () => {
       $("#question").value = button.dataset.question;
-      $("#question").setCustomValidity("");
       $("#question").focus();
     }),
-  );
-  $("#question")?.addEventListener("input", (event) =>
-    event.target.setCustomValidity(""),
   );
   $("#chat-form")?.addEventListener("submit", ask);
   $("#download-plan")?.addEventListener("click", () =>
@@ -339,7 +351,7 @@ function bindChecklist() {
       persist();
       input.closest(".plan-item").classList.toggle("done", input.checked);
       const actions = activeActions();
-      const done = completedCount(actions, completed);
+      const done = actions.filter((action) => completed.has(action.id)).length;
       $(".completion-label").textContent =
         `${done} / ${actions.length} done today`;
       $(".progress").value = done;
@@ -349,6 +361,7 @@ function bindChecklist() {
 function clearAnswer() {
   pendingQuestion?.abort();
   pendingQuestion = undefined;
+  planIds = null;
   aiResult = null;
 }
 function updateQuestionStatus() {
@@ -362,16 +375,8 @@ function updateQuestionStatus() {
 }
 async function ask(event) {
   event.preventDefault();
-  if (pendingQuestion) return;
-  const field = $("#question");
-  const question = field.value.trim();
-  if (question.length < 3) {
-    field.setCustomValidity(
-      "Please enter a question with at least three characters after trimming spaces.",
-    );
-    field.reportValidity();
-    return;
-  }
+  const question = $("#question").value.trim();
+  if (question.length < 3 || pendingQuestion) return;
   const controller = new AbortController();
   pendingQuestion = controller;
   updateQuestionStatus();
@@ -391,13 +396,14 @@ async function ask(event) {
     if (!response.ok) throw new Error(data.error || "Please try again.");
     pendingQuestion = undefined;
     aiResult = data;
+    planIds = data.actionIds;
     if (currentPage() === "plan") {
       const fromSubmit = document.activeElement?.id === "ask-submit";
       const checklistRegion = $("#checklist");
       const fromChecklist = checklistRegion.contains(document.activeElement);
       checklistRegion.innerHTML = checklist();
       bindChecklist();
-      $("#answer").innerHTML = renderAnswer(aiResult, profile.language);
+      $("#answer").innerHTML = resultHTML();
       if (fromSubmit || fromChecklist) $("#answer").focus();
     }
     toast(

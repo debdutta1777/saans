@@ -158,8 +158,7 @@ small,
   margin-top: auto;
   padding: 30px 14px 20px;
 }
-.sidebar-note .sidebar-motto {
-  color: inherit;
+.sidebar-note h3 {
   font-family: Georgia, serif;
   font-size: 26px;
   font-weight: 400;
